@@ -1,0 +1,74 @@
+#!/bin/bash
+
+TS3500CLI="/etc/icinga2/plugins/ibm-tapes/TS3500CLI.jar"
+TS4500CLI="/etc/icinga2/plugins/ibm-tapes/TS4500CLI.jar"
+
+while getopts ":u:p:l:h:m:" opt; do
+  case $opt in
+    u)
+      USER="$OPTARG"
+      ;;
+    p)
+      PASSWORD="$OPTARG"
+      ;;
+    h)
+      HOSTNAME="$OPTARG"
+      ;;
+    m)
+      MODEL="$OPTARG"
+      ;;
+    \?)
+      echo "UNKNOWN- Invalid option: -$OPTARG" >&2
+      exit 3
+      ;;
+    :)
+      echo "UNKNOWN- Option -$OPTARG requires an argument." >&2
+      exit 3
+      ;;
+  esac
+done
+
+if [ "$MODEL" == "3500" ]; then
+	S=`java -jar $TS3500CLI /usr/local/bin/TS3500CLI.jar -a $HOSTNAME -u $USER -p $PASSWORD --viewLogicalLibraries | tail -n +2`
+else
+        S=`java -jar $TS4500CLI -ip $HOSTNAME -u $USER -p $PASSWORD --viewLogicalLibraries | tail -n +2`
+fi
+
+IFS=$'\n'
+OUTPUT=""
+for line in $S; do
+        unset IFS
+        if [ "$MODEL" == "3500" ]; then
+	        LIBNAME=`echo $line | awk -F ", " {'print $1'}`
+	        ASSIGNED=`echo $line | awk -F ", " {'print $5'}`
+	        MAX=`echo $line | awk -F ", " {'print $6'}`
+	        FREE=$(($MAX-$ASSIGNED))
+	        OUTPUT="$LIBNAME capacity: $ASSIGNED/$MAX | assigned=$ASSIGNED max=$MAX free=$FREE"
+
+	else
+	        LIBNAME=`echo $line | awk -F ", " {'print $1'}`
+	        LIBTYPE=`echo $line | awk -F ", " {'print $2'}`
+	        ASSIGNED=`echo $line | awk -F ", " {'print $3'}`
+	        if [ "$OUTPUT" = "" ]; then
+	              OUTPUT="$LIBTYPE-$LIBNAME: $ASSIGNED, "
+	              ASSIGNED1=$ASSIGNED
+	              LIBRARY1="$LIBTYPE-$LIBNAME"
+	        else
+	              OUTPUT="$OUTPUT $LIBTYPE-$LIBNAME: $ASSIGNED | $LIBRARY1=$ASSIGNED1 $LIBTYPE-$LIBNAME=$ASSIGNED"
+	        fi
+        fi
+done
+if [ "$MODEL" == "3500" ]; then
+        if [ $FREE -lt 17  ]; then
+            echo "CRITICAL- $OUTPUT"
+            exit 2
+        elif [ $FREE -lt 30 ]; then
+            echo "WARNING- $OUTPUT"
+            exit 1
+        else
+            echo "OK- $OUTPUT"
+            exit 0
+        fi
+else
+	echo "OK- $OUTPUT"
+fi
