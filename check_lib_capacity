@@ -1,7 +1,7 @@
 #!/bin/bash
 
-TS3500CLI="/etc/icinga2/plugins/ibm-tapes/TS3500CLI.jar"
-TS4500CLI="/etc/icinga2/plugins/ibm-tapes/TS4500CLI.jar"
+TS3500CLI="/usr/local/bin/TS3500CLI.jar"
+TS4500CLI="/usr/local/bin/TS4500CLI.jar"
 
 while getopts ":u:p:l:h:m:" opt; do
   case $opt in
